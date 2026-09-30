@@ -1,5 +1,5 @@
-import { ChangeEvent, MouseEvent, useMemo, useState } from 'react';
-import './App.css';
+import { useMemo, useState } from 'react';
+import type { ChangeEvent, MouseEvent } from 'react';import './App.css';
 import { getTemplates } from './data/templates';
 import type {
   CreationMode,
