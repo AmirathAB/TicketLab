@@ -3,23 +3,24 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
-     * Seed the application's database.
+     * Crée le compte administrateur (ADMIN_NAME / ADMIN_EMAIL / ADMIN_PASSWORD
+     * dans .env) puis les templates prédéfinis. Relançable sans doublon.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $admin = config('ticketlab.admin');
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        User::updateOrCreate(
+            ['email' => $admin['email']],
+            ['name' => $admin['name'], 'password' => Hash::make($admin['password'])]
+        );
+
+        $this->call(TemplateSeeder::class);
     }
 }

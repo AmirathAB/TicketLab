@@ -1,32 +1,60 @@
-# React + TypeScript + Vite
+# TicketLab — Frontend (React + Vite + TypeScript)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interface de TicketLab : connexion, choix du support et du secteur, template
+personnel (avec éditeur de zone QR) ou template TicketLab (texte modifiable en
+direct), puis génération et téléchargement du ZIP.
 
-Currently, two official plugins are available:
+## Installation
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+cd front
+npm install
+cp .env.example .env     # puis adapter VITE_API_URL
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`.env` :
+
+```
+VITE_API_URL=http://127.0.0.1:8001/api
+```
+
+Le backend doit autoriser l'origine du front (`FRONTEND_URL` dans `back/.env`).
+
+## Développement
+
+```bash
+npm run dev      # http://localhost:5173
+npm run lint
+```
+
+## Build de production
+
+```bash
+npm run build    # sortie dans dist/ (hébergeable sur Vercel, Netlify, serveur statique)
+```
+
+`VITE_API_URL` est lue **au build** : définissez-la avant `npm run build`.
+
+## Structure
+
+```
+src/
+  api/client.ts                  axios + token + gestion du 401 et des erreurs blob
+  components/editor/QrZoneEditor.tsx   zone QR : déplacer, redimensionner, dessiner
+  types/ticketlab.ts             types partagés
+  utils/qrZone.ts                bornage de la zone dans l'image
+  assets/fonts/                  Poppins (mêmes .ttf que le backend)
+  App.tsx                        wizard complet
+```
+
+## Points d'attention
+
+- Toutes les coordonnées (champs, zone QR) sont en **pixels natifs de l'image**,
+  jamais en pixels d'écran. L'aperçu les convertit en pourcentages, et la taille
+  du texte en `cqw` (unité de conteneur) pour ne pas dépendre de la fenêtre.
+- L'aperçu et le rendu serveur utilisent la même police (Poppins) mais pas le même
+  moteur : la césure d'une ligne longue peut différer de quelques pixels.
+  Pour un rendu identique, préférez des retours à la ligne explicites dans les
+  champs multi-lignes.
+- Le jeton est stocké dans `localStorage` ; la session est revérifiée via
+  `/api/me` au chargement.

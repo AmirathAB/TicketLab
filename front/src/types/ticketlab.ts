@@ -9,9 +9,15 @@ export type Sector =
 
 export type CreationMode = 'preset' | 'custom';
 
+/** Coordonnées en pixels, dans la résolution NATIVE de l'image. */
 export interface QrZone {
   x: number;
   y: number;
+  width: number;
+  height: number;
+}
+
+export interface ImageSize {
   width: number;
   height: number;
 }
@@ -21,18 +27,23 @@ export interface TemplateField {
   label: string;
   placeholder: string;
   required?: boolean;
-  type?: 'text' | 'textarea';
+  /** `counter` : numéro incrémenté automatiquement par ticket (non éditable) */
+  type?: 'text' | 'textarea' | 'counter';
   x: number;
   y: number;
   fontSize: number;
   color: string;
   maxWidth?: number;
   fontWeight?: number;
+  fontFamily?: string;
+  lineHeight?: number;
+  align?: 'left' | 'center' | 'right';
 }
 
 export interface TicketTemplate {
-  id: string;
+  id: number;
   name: string;
+  description?: string | null;
   type: SupportType;
   sector: Sector;
   imagePath: string;
@@ -49,7 +60,9 @@ export interface GeneratorState {
   template: TicketTemplate | null;
   customTemplateFile: File | null;
   customTemplatePreview: string | null;
+  customImageSize: ImageSize | null;
   qrZone: QrZone;
   values: Record<string, string>;
   qrZip: File | null;
+  qrCount: number | null;
 }

@@ -6,12 +6,23 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Modèle Template
- * 
- * Représente un template prédéfini (ticket, flyer, affiche) avec :
- * - Une image de fond
- * - Une zone QR prédéfinie
- * - Des champs texte éditables
+ * Template prédéfini (ticket, flyer, affiche).
+ *
+ * Un template = une image de fond + une zone QR + des champs texte éditables.
+ * Toutes les coordonnées sont en pixels, dans la résolution native de l'image
+ * (colonnes width / height). Voir database/seeders/TemplateSeeder.php pour le
+ * schéma complet d'un champ.
+ *
+ * @property int $id
+ * @property string $type
+ * @property string $sector
+ * @property string $name
+ * @property string|null $description
+ * @property string $image_path  relatif à config('ticketlab.templates_path')
+ * @property int $width
+ * @property int $height
+ * @property array $qr_zone
+ * @property array $fields
  */
 class Template extends Model
 {
@@ -36,43 +47,62 @@ class Template extends Model
         'is_global' => 'boolean',
     ];
 
-    /**
-     * Obtenir la zone QR sous forme d'objet
-     * Format : ['x' => int, 'y' => int, 'width' => int, 'height' => int]
-     */
+    /** Les colonnes *_json restent internes : l'API expose qr_zone, fields et image_url. */
+    protected $hidden = ['qr_zone_json', 'fields_json', 'image_path'];
+
+    protected $appends = ['qr_zone', 'fields', 'image_url'];
+
+    /** Format : ['x' => int, 'y' => int, 'width' => int, 'height' => int] */
     public function getQrZoneAttribute(): array
     {
-        return $this->qr_zone_json;
+        return $this->qr_zone_json ?? [];
     }
 
-    /**
-     * Obtenir les champs éditables
-     * Format : [{key, label, type, x, y, fontSize, fontFamily, color, align, maxWidth, required}]
-     */
+    /** Format : [{key, label, type, x, y, fontSize, fontFamily, color, align, maxWidth, required, ...}] */
     public function getFieldsAttribute(): array
     {
-        return $this->fields_json;
+        return $this->fields_json ?? [];
     }
 
     /**
-     * Scope pour filtrer par type et secteur
+     * URL publique de l'image (route non protégée : une balise <img> ne peut
+     * pas envoyer le header Authorization).
      */
-    public function scopeByTypeAndSector($query, ?string $type, ?string $sector)
+    public function getImageUrlAttribute(): string
     {
-        if ($type) {
-            $query->where('type', $type);
-        }
-        
-        if ($sector) {
-            $query->where('sector', $sector);
-        }
-        
-        return $query;
+        return route('templates.image', ['template' => $this->getKey()]);
     }
 
-    /**
-     * Scope pour les templates globaux
-     */
+    /** Chemin absolu de l'image, ou null si le chemin sort du dossier des templates. */
+    public function absoluteImagePath(): ?string
+    {
+        $base = realpath((string) config('ticketlab.templates_path'));
+        $file = $base ? realpath($base . DIRECTORY_SEPARATOR . ltrim($this->image_path, '/\\')) : false;
+
+        if ($base === false || $file === false || ! str_starts_with($file, $base . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return $file;
+    }
+
+    public function imageExists(): bool
+    {
+        $path = $this->absoluteImagePath();
+
+        return $path !== null && is_file($path);
+    }
+
+    public function scopeOfType($query, ?string $type)
+    {
+        return $type ? $query->where('type', $type) : $query;
+    }
+
+    public function scopeOfSector($query, ?string $sector)
+    {
+        return $sector ? $query->where('sector', $sector) : $query;
+    }
+
     public function scopeGlobal($query)
     {
         return $query->where('is_global', true);

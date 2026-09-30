@@ -22,6 +22,7 @@ class TemplateController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Routes protégées (Sanctum) : le front envoie le Bearer token
         $validated = $request->validate([
             'type'   => ['nullable', 'in:ticket,flyer,affiche'],
             'sector' => ['nullable', 'in:stand,evenement,parking,garage,lavage'],

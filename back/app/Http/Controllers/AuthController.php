@@ -60,8 +60,19 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Inscription publique : fermée par défaut (config ticketlab.allow_registration,
+     * variable ALLOW_REGISTRATION). Sinon n'importe qui pourrait créer un compte
+     * et lancer des générations sur votre serveur.
+     */
     public function register(Request $request): JsonResponse
     {
+        if (! config('ticketlab.allow_registration')) {
+            return response()->json([
+                'message' => 'Les inscriptions sont désactivées.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users'],

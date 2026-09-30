@@ -1,7 +1,34 @@
-import { useMemo, useState, useEffect } from 'react';
-import type { ChangeEvent, MouseEvent } from 'react';
+import { useState, useEffect } from 'react';
+import type { ChangeEvent } from 'react';
+import JSZip from 'jszip';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Car,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  PartyPopper,
+  PenLine,
+  Puzzle,
+  QrCode,
+  Sparkles,
+  Store,
+  Ticket,
+  Upload,
+  Wrench,
+  CircleParking,
+  Crosshair,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import './App.css';
-import apiClient from './api/client';
+import apiClient, {
+  TOKEN_KEY,
+  UNAUTHORIZED_EVENT,
+  getErrorMessage,
+} from './api/client';
+import QrZoneEditor from './components/editor/QrZoneEditor';
+import { clampZone, defaultZone } from './utils/qrZone';
 import type {
   CreationMode,
   GeneratorState,
@@ -11,6 +38,17 @@ import type {
   TemplateField,
   TicketTemplate,
 } from './types/ticketlab';
+
+// Limites affichées/validées côté client (le serveur revalide de toute façon)
+const MAX_TEMPLATE_MB = 10;
+const MAX_QR_ZIP_MB = 50;
+const QR_SIZES = [150, 200, 250];
+
+// Forme JSON renvoyée par GET /api/templates
+interface ApiTemplate extends Omit<TicketTemplate, 'imagePath' | 'qrZone'> {
+  image_url: string;
+  qr_zone: QrZone;
+}
 
 const initialQrZone: QrZone = {
   x: 650,
@@ -26,51 +64,58 @@ const initialState: GeneratorState = {
   template: null,
   customTemplateFile: null,
   customTemplatePreview: null,
+  customImageSize: null,
   qrZone: initialQrZone,
   values: {},
   qrZip: null,
+  qrCount: null,
 };
 
 const supportChoices: Array<{
   value: SupportType;
   title: string;
   description: string;
-  icon: string;
+  icon: LucideIcon;
 }> = [
   {
     value: 'ticket',
     title: 'Ticket',
     description: "Coupons, accès, bons d'achat et prestations.",
-    icon: '🎟️',
+    icon: Ticket,
   },
   {
     value: 'flyer',
     title: 'Flyer',
     description: 'Supports promotionnels à distribuer.',
-    icon: '📄',
+    icon: FileText,
   },
   {
     value: 'affiche',
     title: 'Affiche',
     description: 'Visuels grand format pour informer.',
-    icon: '🖼️',
+    icon: ImageIcon,
   },
 ];
 
 const sectorChoices: Array<{
   value: Sector;
   title: string;
-  icon: string;
+  icon: LucideIcon;
 }> = [
-  { value: 'stand', title: 'Stand', icon: '🏪' },
-  { value: 'evenement', title: 'Événement', icon: '🎉' },
-  { value: 'parking', title: 'Parking', icon: '🅿️' },
-  { value: 'garage', title: 'Garage', icon: '🔧' },
-  { value: 'lavage', title: 'Lavage', icon: '🚘' },
+  { value: 'stand', title: 'Stand', icon: Store },
+  { value: 'evenement', title: 'Événement', icon: PartyPopper },
+  { value: 'parking', title: 'Parking', icon: CircleParking },
+  { value: 'garage', title: 'Garage', icon: Wrench },
+  { value: 'lavage', title: 'Lavage', icon: Car },
 ];
 
 function App() {
+  // Session conservée au rafraîchissement : on vérifie le token stocké via /me
+  const [isCheckingSession, setIsCheckingSession] = useState(
+    () => Boolean(localStorage.getItem(TOKEN_KEY)),
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -78,15 +123,33 @@ function App() {
   const [state, setState] = useState<GeneratorState>(initialState);
   const [isGenerating, setIsGenerating] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [isDraggingQr, setIsDraggingQr] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<TicketTemplate[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
 
   useEffect(() => {
-    if (state.support && state.sector) {
-      loadTemplates();
+    if (!localStorage.getItem(TOKEN_KEY)) {
+      return;
     }
-  }, [state.support, state.sector]);
+
+    apiClient
+      .get('/me')
+      .then(() => setIsAuthenticated(true))
+      .catch(() => setIsAuthenticated(false))
+      .finally(() => setIsCheckingSession(false));
+  }, []);
+
+  // Token expiré ou révoqué pendant l'utilisation
+  useEffect(() => {
+    function onUnauthorized() {
+      setIsAuthenticated(false);
+      setLoginError('Votre session a expiré. Reconnectez-vous.');
+    }
+
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
 
   async function loadTemplates() {
     setIsLoadingTemplates(true);
@@ -98,7 +161,7 @@ function App() {
         },
       });
 
-      const templates = response.data.map((t: any) => ({
+      const templates = response.data.map((t: ApiTemplate) => ({
         id: t.id,
         type: t.type,
         sector: t.sector,
@@ -115,25 +178,36 @@ function App() {
     } catch (error) {
       console.error('Erreur lors du chargement des templates:', error);
       setAvailableTemplates([]);
+      setErrorMessage(await getErrorMessage(error, 'Impossible de charger les templates.'));
     } finally {
       setIsLoadingTemplates(false);
     }
   }
+
+  useEffect(() => {
+    if (isAuthenticated && state.support && state.sector) {
+      loadTemplates();
+    }
+    // loadTemplates lit support/sector : ils sont déjà dans les dépendances
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, state.support, state.sector]);
 
   const selectedTemplateImage =
     state.mode === 'preset'
       ? state.template?.imagePath ?? null
       : state.customTemplatePreview;
 
+  // Dimensions NATIVES de l'image affichée : toutes les coordonnées (champs,
+  // zone QR) sont exprimées dans cette résolution, jamais en pixels d'écran.
   const canvasWidth =
     state.mode === 'preset'
       ? state.template?.width ?? 1000
-      : 1000;
+      : state.customImageSize?.width ?? 1000;
 
   const canvasHeight =
     state.mode === 'preset'
       ? state.template?.height ?? 650
-      : 650;
+      : state.customImageSize?.height ?? 650;
 
   const activeQrZone =
     state.mode === 'preset' && state.template
@@ -143,35 +217,40 @@ function App() {
   const fields =
     state.mode === 'preset' && state.template ? state.template.fields : [];
 
+  // Les champs `counter` (numéro de ticket) sont remplis automatiquement
+  const editableFields = fields.filter((field) => field.type !== 'counter');
+
   function updateState(patch: Partial<GeneratorState>) {
     setState((current) => ({ ...current, ...patch }));
     setSuccessMessage('');
+    setErrorMessage('');
   }
 
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !password) {
       setLoginError('Renseigne ton email et ton mot de passe.');
       return;
     }
 
+    setIsLoggingIn(true);
+
     try {
       const response = await apiClient.post('/login', {
         email: email.trim(),
-        password: password.trim(),
+        password,
       });
 
-      const { token, user } = response.data;
-
-      localStorage.setItem('ticketlab_token', token);
+      localStorage.setItem(TOKEN_KEY, response.data.token);
 
       setLoginError('');
+      setPassword('');
       setIsAuthenticated(true);
-    } catch (error: any) {
-      setLoginError(
-        error.response?.data?.message || 'Erreur de connexion'
-      );
+    } catch (error) {
+      setLoginError(await getErrorMessage(error, 'Erreur de connexion'));
+    } finally {
+      setIsLoggingIn(false);
     }
   }
 
@@ -225,24 +304,43 @@ function App() {
 
   function handleCustomTemplateUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
 
     if (!file) {
       return;
     }
 
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      window.alert('Utilise uniquement une image PNG ou JPG.');
+      setErrorMessage('Utilisez uniquement une image PNG ou JPG.');
+      return;
+    }
+
+    if (file.size > MAX_TEMPLATE_MB * 1024 * 1024) {
+      setErrorMessage(`L'image dépasse ${MAX_TEMPLATE_MB} Mo.`);
       return;
     }
 
     const reader = new FileReader();
 
     reader.onload = () => {
-      updateState({
-        customTemplateFile: file,
-        customTemplatePreview: String(reader.result),
-      });
-      setStep(5);
+      const preview = String(reader.result);
+      const probe = new Image();
+
+      probe.onload = () => {
+        // La zone QR vit dans la résolution réelle de l'image
+        const size = { width: probe.naturalWidth, height: probe.naturalHeight };
+
+        updateState({
+          customTemplateFile: file,
+          customTemplatePreview: preview,
+          customImageSize: size,
+          qrZone: defaultZone(size),
+        });
+        setStep(5);
+      };
+
+      probe.onerror = () => setErrorMessage("Cette image est illisible ou corrompue.");
+      probe.src = preview;
     };
 
     reader.readAsDataURL(file);
@@ -257,54 +355,59 @@ function App() {
     });
   }
 
+  function updateQrZone(zone: QrZone) {
+    updateState({ qrZone: zone });
+  }
+
   function updateQrZoneFromInputs(key: keyof QrZone, value: string) {
     const parsedValue = Number(value);
 
-    if (!Number.isFinite(parsedValue)) {
+    if (!Number.isFinite(parsedValue) || !state.customImageSize) {
       return;
     }
 
-    updateState({
-      qrZone: {
-        ...state.qrZone,
-        [key]: Math.max(0, Math.round(parsedValue)),
-      },
-    });
+    updateQrZone(
+      clampZone({ ...state.qrZone, [key]: parsedValue }, state.customImageSize),
+    );
   }
 
-  function handleCanvasClick(event: MouseEvent<HTMLDivElement>) {
-    if (state.mode !== 'custom' || !isDraggingQr) {
-      return;
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * canvasWidth;
-    const y = ((event.clientY - rect.top) / rect.height) * canvasHeight;
-
-    updateState({
-      qrZone: {
-        ...state.qrZone,
-        x: Math.max(0, Math.round(x - state.qrZone.width / 2)),
-        y: Math.max(0, Math.round(y - state.qrZone.height / 2)),
-      },
-    });
-
-    setIsDraggingQr(false);
-  }
-
-  function handleQrZipUpload(event: ChangeEvent<HTMLInputElement>) {
+  async function handleQrZipUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
 
     if (!file) {
       return;
     }
 
     if (!file.name.toLowerCase().endsWith('.zip')) {
-      window.alert('Sélectionne un fichier ZIP qui contient les QR codes.');
+      setErrorMessage('Sélectionnez un fichier ZIP qui contient les QR codes.');
       return;
     }
 
-    updateState({ qrZip: file });
+    if (file.size > MAX_QR_ZIP_MB * 1024 * 1024) {
+      setErrorMessage(`Le ZIP dépasse ${MAX_QR_ZIP_MB} Mo.`);
+      return;
+    }
+
+    // Inspection locale : compte les images pour annoncer le nombre de tickets
+    try {
+      const archive = await JSZip.loadAsync(file);
+      const count = Object.values(archive.files).filter(
+        (entry) =>
+          !entry.dir &&
+          !entry.name.includes('__MACOSX/') &&
+          /\.(png|jpe?g)$/i.test(entry.name),
+      ).length;
+
+      if (count === 0) {
+        setErrorMessage('Ce ZIP ne contient aucune image PNG ou JPG.');
+        return;
+      }
+
+      updateState({ qrZip: file, qrCount: count });
+    } catch {
+      setErrorMessage('Ce fichier ZIP est invalide ou corrompu.');
+    }
   }
 
   function requiredFieldsCompleted() {
@@ -328,14 +431,16 @@ function App() {
 
   async function generateTickets() {
     if (!canGenerate()) {
-      window.alert(
-        'Complète les informations obligatoires et ajoute le ZIP des QR codes.',
+      setErrorMessage(
+        'Complétez les informations obligatoires et ajoutez le ZIP des QR codes.',
       );
       return;
     }
 
     setIsGenerating(true);
     setSuccessMessage('');
+    setErrorMessage('');
+    setUploadProgress(0);
 
     try {
       const formData = new FormData();
@@ -358,29 +463,33 @@ function App() {
         ? '/generate/preset'
         : '/generate/custom';
 
+      // Pas de Content-Type manuel : le navigateur ajoute le boundary multipart
       const response = await apiClient.post(endpoint, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
         responseType: 'blob',
+        onUploadProgress: (progress) => {
+          if (progress.total) {
+            setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
+          }
+        },
       });
 
       const blob = new Blob([response.data], { type: 'application/zip' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
       link.href = url;
-      link.download = `tickets_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.zip`;
+      link.download = `tickets_${stamp}.zip`;
       link.click();
       window.URL.revokeObjectURL(url);
 
-      setSuccessMessage('Tickets générés avec succès ! Téléchargement en cours...');
-    } catch (error: any) {
-      console.error('Erreur lors de la génération:', error);
       setSuccessMessage(
-        error.response?.data?.message || 'Erreur lors de la génération'
+        `${state.qrCount ?? ''} visuel(s) généré(s). Le téléchargement a démarré.`.trim(),
       );
+    } catch (error) {
+      setErrorMessage(await getErrorMessage(error, 'Erreur lors de la génération.'));
     } finally {
       setIsGenerating(false);
+      setUploadProgress(null);
     }
   }
 
@@ -388,6 +497,7 @@ function App() {
     setState(initialState);
     setStep(1);
     setSuccessMessage('');
+    setErrorMessage('');
   }
 
   async function handleLogout() {
@@ -396,8 +506,9 @@ function App() {
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
     } finally {
-      localStorage.removeItem('ticketlab_token');
+      localStorage.removeItem(TOKEN_KEY);
       setIsAuthenticated(false);
+      setLoginError('');
       restart();
     }
   }
@@ -412,6 +523,24 @@ function App() {
     };
 
     return titles[step];
+  }
+
+  const errorBanner = errorMessage ? (
+    <div className="error-message" role="alert">
+      <AlertTriangle size={18} aria-hidden="true" />
+      <span>{errorMessage}</span>
+    </div>
+  ) : null;
+
+  if (isCheckingSession) {
+    return (
+      <main className="auth-page">
+        <section className="auth-card">
+          <p className="eyebrow">TICKETLAB</p>
+          <h1>Chargement…</h1>
+        </section>
+      </main>
+    );
   }
 
   if (!isAuthenticated) {
@@ -453,14 +582,17 @@ function App() {
 
             {loginError && <p className="form-error">{loginError}</p>}
 
-            <button className="primary-button" type="submit">
-              Se connecter
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={isLoggingIn}
+            >
+              {isLoggingIn ? 'Connexion…' : 'Se connecter'}
             </button>
           </form>
 
           <p className="auth-hint">
-            Démonstration locale : n'importe quel email et mot de passe
-            permettent d'ouvrir le studio.
+            Accès réservé. Contactez l'administrateur pour obtenir un compte.
           </p>
         </section>
 
@@ -524,6 +656,8 @@ function App() {
       </section>
 
       <section className="workspace">
+        {step < 5 && errorBanner}
+
         {step === 1 && (
           <div className="choice-grid choice-grid--support">
             {supportChoices.map((choice) => (
@@ -533,7 +667,9 @@ function App() {
                 type="button"
                 onClick={() => chooseSupport(choice.value)}
               >
-                <span className="choice-card__icon">{choice.icon}</span>
+                <span className="choice-card__icon">
+                  <choice.icon size={28} aria-hidden="true" />
+                </span>
                 <strong>{choice.title}</strong>
                 <span>{choice.description}</span>
                 <em>Choisir →</em>
@@ -551,7 +687,9 @@ function App() {
                 type="button"
                 onClick={() => chooseSector(choice.value)}
               >
-                <span className="choice-card__icon">{choice.icon}</span>
+                <span className="choice-card__icon">
+                  <choice.icon size={28} aria-hidden="true" />
+                </span>
                 <strong>{choice.title}</strong>
                 <em>Choisir →</em>
               </button>
@@ -567,7 +705,9 @@ function App() {
               onClick={() => chooseMode('preset')}
             >
               <span className="mode-card__number">01</span>
-              <span className="mode-card__icon">✨</span>
+              <span className="mode-card__icon">
+                <Sparkles size={28} aria-hidden="true" />
+              </span>
               <h2>Utiliser un template TicketLab</h2>
               <p>
                 Choisissez un modèle existant, remplissez les informations et
@@ -582,7 +722,9 @@ function App() {
               onClick={() => chooseMode('custom')}
             >
               <span className="mode-card__number">02</span>
-              <span className="mode-card__icon">📤</span>
+              <span className="mode-card__icon">
+                <Upload size={28} aria-hidden="true" />
+              </span>
               <h2>Uploader mon propre template</h2>
               <p>
                 Importez votre visuel et choisissez précisément l'emplacement
@@ -597,7 +739,7 @@ function App() {
           <div className="template-section">
             {isLoadingTemplates ? (
               <div className="empty-state">
-                <span>⏳</span>
+                <Loader2 className="icon-spin" size={32} aria-hidden="true" />
                 <h2>Chargement des templates...</h2>
               </div>
             ) : availableTemplates.length > 0 ? (
@@ -626,7 +768,7 @@ function App() {
               </div>
             ) : (
               <div className="empty-state">
-                <span>🧩</span>
+                <Puzzle size={32} aria-hidden="true" />
                 <h2>Aucun template disponible pour ce choix</h2>
                 <p>
                   Les futurs templates seront ajoutés progressivement. Essaie
@@ -662,7 +804,9 @@ function App() {
                 type="file"
                 onChange={handleCustomTemplateUpload}
               />
-              <span className="upload-dropzone__icon">⬆</span>
+              <span className="upload-dropzone__icon">
+                <Upload size={24} aria-hidden="true" />
+              </span>
               <strong>Déposez votre image ici</strong>
               <span>ou cliquez pour parcourir vos fichiers</span>
               <small>PNG ou JPG</small>
@@ -684,29 +828,19 @@ function App() {
                 </div>
 
                 {state.mode === 'custom' && (
-                  <button
-                    className={`secondary-button ${
-                      isDraggingQr ? 'secondary-button--active' : ''
-                    }`}
-                    type="button"
-                    onClick={() => setIsDraggingQr((value) => !value)}
-                  >
-                    {isDraggingQr
-                      ? 'Cliquez sur le visuel'
-                      : 'Déplacer la zone QR'}
-                  </button>
+                  <p className="settings-help">
+                    Glissez la zone pour la déplacer, tirez un coin pour la
+                    redimensionner, ou dessinez-en une nouvelle.
+                  </p>
                 )}
               </div>
 
               <div className="canvas-scroll">
                 <div
-                  className={`ticket-canvas ${
-                    isDraggingQr ? 'ticket-canvas--placing' : ''
-                  }`}
+                  className="ticket-canvas"
                   style={{
                     aspectRatio: `${canvasWidth} / ${canvasHeight}`,
                   }}
-                  onClick={handleCanvasClick}
                 >
                   <img
                     className="ticket-canvas__image"
@@ -720,6 +854,10 @@ function App() {
                     const width = field.maxWidth
                       ? `${(field.maxWidth / canvasWidth) * 100}%`
                       : undefined;
+                    const text =
+                      field.type === 'counter'
+                        ? '1'
+                        : state.values[field.key] || field.placeholder;
 
                     return (
                       <span
@@ -730,29 +868,39 @@ function App() {
                           top,
                           width,
                           color: field.color,
-                          fontSize: `${(field.fontSize / canvasWidth) * 100}vw`,
+                          // cqw = % de la largeur de l'aperçu : la taille du
+                          // texte ne dépend plus de la fenêtre du navigateur
+                          fontSize: `${(field.fontSize / canvasWidth) * 100}cqw`,
                           fontWeight: field.fontWeight ?? 500,
+                          lineHeight: field.lineHeight ?? 1.4,
+                          textAlign: field.align ?? 'left',
+                          whiteSpace: field.maxWidth ? 'pre-wrap' : 'pre',
                         }}
                       >
-                        {state.values[field.key] || field.placeholder}
+                        {text}
                       </span>
                     );
                   })}
 
-                  <div
-                    className="qr-zone-preview"
-                    style={{
-                      left: `${(activeQrZone.x / canvasWidth) * 100}%`,
-                      top: `${(activeQrZone.y / canvasHeight) * 100}%`,
-                      width: `${(activeQrZone.width / canvasWidth) * 100}%`,
-                      height: `${(activeQrZone.height / canvasHeight) * 100}%`,
-                    }}
-                  >
-                    <div className="qr-zone-preview__pattern">
-                      QR
+                  {state.mode === 'custom' && state.customImageSize ? (
+                    <QrZoneEditor
+                      zone={state.qrZone}
+                      image={state.customImageSize}
+                      onChange={updateQrZone}
+                    />
+                  ) : (
+                    <div
+                      className="qr-zone-preview"
+                      style={{
+                        left: `${(activeQrZone.x / canvasWidth) * 100}%`,
+                        top: `${(activeQrZone.y / canvasHeight) * 100}%`,
+                        width: `${(activeQrZone.width / canvasWidth) * 100}%`,
+                        height: `${(activeQrZone.height / canvasHeight) * 100}%`,
+                      }}
+                    >
+                      <span>QR code</span>
                     </div>
-                    <span>QR code</span>
-                  </div>
+                  )}
                 </div>
               </div>
             </section>
@@ -761,11 +909,11 @@ function App() {
               {state.mode === 'preset' ? (
                 <section className="settings-section">
                   <div className="settings-section__title">
-                    <span>✏️</span>
+                    <PenLine size={18} aria-hidden="true" />
                     <h3>Informations à afficher</h3>
                   </div>
 
-                  {fields.map((field) => (
+                  {editableFields.map((field) => (
                     <label className="form-control" key={field.key}>
                       <span>
                         {field.label}
@@ -795,13 +943,17 @@ function App() {
               ) : (
                 <section className="settings-section">
                   <div className="settings-section__title">
-                    <span>⌖</span>
+                    <Crosshair size={18} aria-hidden="true" />
                     <h3>Position de la zone QR</h3>
                   </div>
 
                   <p className="settings-help">
-                    Utilisez les coordonnées ou cliquez sur "Déplacer la zone
-                    QR", puis cliquez directement dans l'aperçu.
+                    Ajustez la zone à la souris dans l'aperçu ou saisissez les
+                    coordonnées (en pixels de l'image
+                    {state.customImageSize
+                      ? ` : ${state.customImageSize.width} × ${state.customImageSize.height}`
+                      : ''}
+                    ).
                   </p>
 
                   <div className="qr-input-grid">
@@ -832,18 +984,18 @@ function App() {
 
                   <div className="qr-presets">
                     <span>Tailles rapides :</span>
-                    {[150, 200, 250].map((size) => (
+                    {QR_SIZES.map((size) => (
                       <button
                         key={size}
                         type="button"
                         onClick={() =>
-                          updateState({
-                            qrZone: {
-                              ...state.qrZone,
-                              width: size,
-                              height: size,
-                            },
-                          })
+                          state.customImageSize &&
+                          updateQrZone(
+                            clampZone(
+                              { ...state.qrZone, width: size, height: size },
+                              state.customImageSize,
+                            ),
+                          )
                         }
                       >
                         {size} × {size}
@@ -855,7 +1007,7 @@ function App() {
 
               <section className="settings-section">
                 <div className="settings-section__title">
-                  <span>▦</span>
+                  <QrCode size={18} aria-hidden="true" />
                   <h3>ZIP des QR codes</h3>
                 </div>
 
@@ -874,12 +1026,14 @@ function App() {
                     </strong>
                     <small>
                       {state.qrZip
-                        ? 'Fichier prêt pour la génération'
+                        ? `${state.qrCount} QR code(s) détecté(s) · ${state.qrCount} visuel(s) seront générés`
                         : 'Un QR code par ticket généré'}
                     </small>
                   </span>
                 </label>
               </section>
+
+              {errorBanner}
 
               {successMessage && (
                 <div className="success-message">{successMessage}</div>
@@ -894,6 +1048,19 @@ function App() {
                 {isGenerating ? 'Génération en cours…' : 'Générer les visuels'}
               </button>
 
+              {isGenerating && (
+                <>
+                  <div className="generation-progress" aria-hidden="true">
+                    <span style={{ width: `${uploadProgress ?? 0}%` }} />
+                  </div>
+                  <p className="generation-hint">
+                    {uploadProgress !== null && uploadProgress < 100
+                      ? `Envoi des fichiers… ${uploadProgress} %`
+                      : `Génération de ${state.qrCount ?? ''} visuel(s) en cours, cela peut prendre quelques instants…`}
+                  </p>
+                </>
+              )}
+
               <p className="generation-hint">
                 Chaque QR du ZIP produira un ticket, flyer ou affiche distinct.
               </p>
@@ -902,14 +1069,17 @@ function App() {
         )}
       </section>
 
-      {step > 1 && step < 5 && (
+      {step > 1 && (
         <footer className="wizard-footer">
           <button
             className="back-button"
             type="button"
-            onClick={() => setStep((current) => current - 1)}
+            onClick={() => {
+              setErrorMessage('');
+              setStep((current) => current - 1);
+            }}
           >
-            ← Retour
+            <ArrowLeft size={16} aria-hidden="true" /> Retour
           </button>
         </footer>
       )}

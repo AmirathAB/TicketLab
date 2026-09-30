@@ -4,6 +4,24 @@ return [
 
     /*
     |---------------------------------------------------------------------------
+    | Accès
+    |---------------------------------------------------------------------------
+    | `allow_registration` : ouvre POST /api/register. Fermé par défaut.
+    | `frontend_url`       : origine autorisée par le CORS (voir config/cors.php).
+    | `admin`              : compte créé par DatabaseSeeder (ADMIN_* dans .env).
+    */
+    'allow_registration' => (bool) env('ALLOW_REGISTRATION', false),
+
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+
+    'admin' => [
+        'name' => env('ADMIN_NAME', 'Admin TicketLab'),
+        'email' => env('ADMIN_EMAIL', 'admin@ticketlab.test'),
+        'password' => env('ADMIN_PASSWORD', 'password'),
+    ],
+
+    /*
+    |---------------------------------------------------------------------------
     | Templates
     |---------------------------------------------------------------------------
     | Les templates prédéfinis vivent dans resources/templates/images.
@@ -86,7 +104,7 @@ return [
     | `jpeg_quality`  : qualité JPEG des sorties. 92 conserve la netteté des
     |                   modules QR tout en divisant le poids par ~5.
     */
-    'output_format' => 'source',
+    'output_format' => 'source', // 'source' | 'png' | 'jpg'
     'jpeg_quality'  => 92,
 
     /*

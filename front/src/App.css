@@ -798,6 +798,7 @@
 
 .ticket-canvas {
   position: relative;
+  container-type: inline-size;
   min-width: 600px;
   overflow: hidden;
   background: #045f68;
@@ -818,13 +819,13 @@
 
 .ticket-field-preview {
   position: absolute;
-  display: -webkit-box;
-  overflow: hidden;
+  overflow: visible;
   pointer-events: none;
-  line-height: 1.25;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.14);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  /* Même police que le rendu serveur (Poppins) ; fontSize, lineHeight,
+     largeur et alignement sont fournis en ligne, en unités de conteneur
+     (cqw) pour suivre la largeur de l'aperçu, pas celle de la fenêtre. */
+  font-family: 'Poppins', sans-serif;
+  overflow-wrap: normal;
 }
 
 .qr-zone-preview {
@@ -1103,4 +1104,97 @@
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+/* Éditeur de zone QR (mode template personnel) */
+.qr-editor {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.qr-editor__zone {
+  position: absolute;
+  border: 2px solid var(--yellow);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.18);
+  cursor: move;
+}
+
+.qr-editor__label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--teal-dark);
+  background: var(--yellow);
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.qr-editor__handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--yellow);
+  border-radius: 3px;
+  background: #fff;
+}
+
+.qr-editor__handle--nw { top: -8px; left: -8px; cursor: nwse-resize; }
+.qr-editor__handle--ne { top: -8px; right: -8px; cursor: nesw-resize; }
+.qr-editor__handle--sw { bottom: -8px; left: -8px; cursor: nesw-resize; }
+.qr-editor__handle--se { right: -8px; bottom: -8px; cursor: nwse-resize; }
+
+/* Icônes Lucide */
+.choice-card__icon svg,
+.mode-card__icon svg,
+.upload-dropzone__icon svg,
+.zip-upload__icon svg {
+  display: block;
+}
+
+.icon-spin {
+  animation: icon-spin 1s linear infinite;
+}
+
+@keyframes icon-spin {
+  to { transform: rotate(360deg); }
+}
+
+.settings-section__title > svg {
+  color: var(--yellow);
+}
+
+.generation-progress {
+  height: 6px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.generation-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--yellow);
+  transition: width 0.2s ease;
+}
+
+.error-message {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #fff;
+  background: rgba(239, 68, 68, 0.28);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  font-size: 0.84rem;
+  font-weight: 600;
 }
