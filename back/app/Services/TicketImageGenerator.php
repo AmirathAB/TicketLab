@@ -39,8 +39,10 @@ class TicketImageGenerator
 
     private ?string $workDir = null;
 
-    public function __construct(private readonly QrArchive $archive)
-    {
+    public function __construct(
+        private readonly QrArchive $archive,
+        private readonly SvgRasterizer $svg,
+    ) {
     }
 
     /**
@@ -177,20 +179,37 @@ class TicketImageGenerator
      */
     private function placeQr(GdImage $canvas, string $qrPath, array $zone, int $position): void
     {
-        try {
-            $qr = $this->loadImage($qrPath);
-        } catch (RuntimeException) {
-            throw new RuntimeException("Le QR code n°{$position} du ZIP est illisible (image corrompue ou format non supporté).");
+        $isSvg = strtolower(pathinfo($qrPath, PATHINFO_EXTENSION)) === 'svg';
+
+        if ($isSvg) {
+            // SVG (format Ticketche) : rendu vectoriel directement à la taille de la zone,
+            // donc jamais de redimensionnement ni de flou.
+            try {
+                $flat = $this->svg->render(
+                    $qrPath,
+                    (int) $zone['width'],
+                    (int) $zone['height'],
+                    (bool) config('ticketlab.qr_svg_crisp_modules', true)
+                );
+            } catch (RuntimeException $e) {
+                throw new RuntimeException("Le QR code n°{$position} du ZIP (SVG) est inutilisable : " . $e->getMessage());
+            }
+        } else {
+            try {
+                $qr = $this->loadImage($qrPath);
+            } catch (RuntimeException) {
+                throw new RuntimeException("Le QR code n°{$position} du ZIP est illisible (image corrompue ou format non supporté).");
+            }
+
+            // Aplatit l'éventuelle transparence sur du blanc
+            $flat = imagecreatetruecolor(imagesx($qr), imagesy($qr));
+            imagefill($flat, 0, 0, imagecolorallocate($flat, 255, 255, 255));
+            imagecopy($flat, $qr, 0, 0, 0, 0, imagesx($qr), imagesy($qr));
+            imagedestroy($qr);
         }
 
-        $qw = imagesx($qr);
-        $qh = imagesy($qr);
-
-        // Aplatit l'éventuelle transparence sur du blanc
-        $flat = imagecreatetruecolor($qw, $qh);
-        imagefill($flat, 0, 0, imagecolorallocate($flat, 255, 255, 255));
-        imagecopy($flat, $qr, 0, 0, 0, 0, $qw, $qh);
-        imagedestroy($qr);
+        $qw = imagesx($flat);
+        $qh = imagesy($flat);
 
         // Zone de silence blanche autour du QR
         $margin = (int) round(min($zone['width'], $zone['height']) * (float) config('ticketlab.qr_quiet_zone_ratio', 0.04));
@@ -204,15 +223,25 @@ class TicketImageGenerator
             $white
         );
 
-        // Ajustement "contain" dans la zone, centré
-        $ratio = min($zone['width'] / $qw, $zone['height'] / $qh);
-        $dw = max(1, (int) round($qw * $ratio));
-        $dh = max(1, (int) round($qh * $ratio));
+        if ($isSvg) {
+            // Déjà à la bonne taille : simple centrage
+            $dw = $qw;
+            $dh = $qh;
+            $ratio = 1.0;
+        } else {
+            // Ajustement "contain" dans la zone, centré, sans déformation
+            $ratio = min($zone['width'] / $qw, $zone['height'] / $qh);
+            $dw = max(1, (int) round($qw * $ratio));
+            $dh = max(1, (int) round($qh * $ratio));
+        }
+
         $dx = $zone['x'] + intdiv($zone['width'] - $dw, 2);
         $dy = $zone['y'] + intdiv($zone['height'] - $dh, 2);
 
-        if ($ratio >= 1) {
-            imagecopyresized($canvas, $flat, $dx, $dy, 0, 0, $dw, $dh, $qw, $qh); // plus proche voisin
+        if ($isSvg) {
+            imagecopy($canvas, $flat, $dx, $dy, 0, 0, $qw, $qh);
+        } elseif ($ratio >= 1) {
+            imagecopyresized($canvas, $flat, $dx, $dy, 0, 0, $dw, $dh, $qw, $qh); // plus proche voisin : modules nets
         } else {
             imagecopyresampled($canvas, $flat, $dx, $dy, 0, 0, $dw, $dh, $qw, $qh);
         }

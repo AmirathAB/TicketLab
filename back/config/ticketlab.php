@@ -116,4 +116,12 @@ return [
     */
     'qr_quiet_zone_ratio' => 0.04,
 
+    /*
+    | QR au format SVG (fournis par Ticketche) : si le SVG est exprimé en modules
+    | (viewBox entier, ex. 0 0 29 29), il est rendu avec un nombre ENTIER de pixels
+    | par module pour des bords parfaitement nets. Mettre false pour que le QR
+    | remplisse exactement la zone (bords légèrement adoucis).
+    */
+    'qr_svg_crisp_modules' => true,
+
 ];

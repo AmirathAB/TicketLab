@@ -4,6 +4,12 @@ import JSZip from 'jszip';
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Lock,
+  LogIn,
+  User,
   Car,
   FileText,
   Image as ImageIcon,
@@ -119,6 +125,7 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState(1);
   const [state, setState] = useState<GeneratorState>(initialState);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -396,11 +403,11 @@ function App() {
         (entry) =>
           !entry.dir &&
           !entry.name.includes('__MACOSX/') &&
-          /\.(png|jpe?g)$/i.test(entry.name),
+          /\.(png|jpe?g|svg)$/i.test(entry.name),
       ).length;
 
       if (count === 0) {
-        setErrorMessage('Ce ZIP ne contient aucune image PNG ou JPG.');
+        setErrorMessage('Ce ZIP ne contient aucun QR code (PNG, JPG ou SVG attendus).');
         return;
       }
 
@@ -560,25 +567,60 @@ function App() {
           </p>
 
           <form className="login-form" onSubmit={login}>
-            <label>
-              Adresse email
-              <input
-                type="email"
-                value={email}
-                placeholder="vous@entreprise.com"
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
+            <div className="field">
+              <label htmlFor="login-email">Adresse email</label>
+              <div className="input-icon">
+                <User
+                  className="input-icon__left"
+                  size={18}
+                  aria-hidden="true"
+                />
+                <input
+                  id="login-email"
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  placeholder="vous@entreprise.com"
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+            </div>
 
-            <label>
-              Mot de passe
-              <input
-                type="password"
-                value={password}
-                placeholder="••••••••"
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
+            <div className="field">
+              <label htmlFor="login-password">Mot de passe</label>
+              <div className="input-icon">
+                <Lock
+                  className="input-icon__left"
+                  size={18}
+                  aria-hidden="true"
+                />
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  placeholder="Votre mot de passe"
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                  className="input-icon__toggle"
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={
+                    showPassword
+                      ? 'Masquer le mot de passe'
+                      : 'Afficher le mot de passe'
+                  }
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} aria-hidden="true" />
+                  ) : (
+                    <Eye size={18} aria-hidden="true" />
+                  )}
+                </button>
+              </div>
+            </div>
 
             {loginError && <p className="form-error">{loginError}</p>}
 
@@ -587,6 +629,11 @@ function App() {
               type="submit"
               disabled={isLoggingIn}
             >
+              {isLoggingIn ? (
+                <Loader2 className="icon-spin" size={18} aria-hidden="true" />
+              ) : (
+                <LogIn size={18} aria-hidden="true" />
+              )}
               {isLoggingIn ? 'Connexion…' : 'Se connecter'}
             </button>
           </form>
@@ -672,7 +719,9 @@ function App() {
                 </span>
                 <strong>{choice.title}</strong>
                 <span>{choice.description}</span>
-                <em>Choisir →</em>
+                <em>
+                  Choisir <ArrowRight size={16} aria-hidden="true" />
+                </em>
               </button>
             ))}
           </div>
@@ -691,7 +740,9 @@ function App() {
                   <choice.icon size={28} aria-hidden="true" />
                 </span>
                 <strong>{choice.title}</strong>
-                <em>Choisir →</em>
+                <em>
+                  Choisir <ArrowRight size={16} aria-hidden="true" />
+                </em>
               </button>
             ))}
           </div>
@@ -713,7 +764,10 @@ function App() {
                 Choisissez un modèle existant, remplissez les informations et
                 ajoutez vos QR codes.
               </p>
-              <span className="mode-card__cta">Explorer les templates →</span>
+              <span className="mode-card__cta">
+                Explorer les templates
+                <ArrowRight size={16} aria-hidden="true" />
+              </span>
             </button>
 
             <button
@@ -730,7 +784,10 @@ function App() {
                 Importez votre visuel et choisissez précisément l'emplacement
                 du QR code.
               </p>
-              <span className="mode-card__cta">Importer un visuel →</span>
+              <span className="mode-card__cta">
+                Importer un visuel
+                <ArrowRight size={16} aria-hidden="true" />
+              </span>
             </button>
           </div>
         )}
@@ -1027,7 +1084,7 @@ function App() {
                     <small>
                       {state.qrZip
                         ? `${state.qrCount} QR code(s) détecté(s) · ${state.qrCount} visuel(s) seront générés`
-                        : 'Un QR code par ticket généré'}
+                        : 'Un QR code par ticket généré (PNG, JPG ou SVG)'}
                     </small>
                   </span>
                 </label>

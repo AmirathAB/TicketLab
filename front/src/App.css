@@ -86,7 +86,12 @@
   max-width: 420px;
 }
 
-.login-form label,
+.login-form .field {
+  display: grid;
+  gap: 8px;
+}
+
+.login-form .field > label,
 .form-control {
   display: grid;
   gap: 8px;
@@ -116,12 +121,68 @@
   box-shadow: 0 0 0 4px rgba(255, 180, 0, 0.16);
 }
 
+/* Champs avec icône (connexion) */
+.input-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon input {
+  padding-left: 44px;
+}
+
+.input-icon:has(.input-icon__toggle) input {
+  padding-right: 46px;
+}
+
+.input-icon__left {
+  position: absolute;
+  left: 15px;
+  color: #6f9a94;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.input-icon:focus-within .input-icon__left {
+  color: var(--teal-dark);
+}
+
+.input-icon__toggle {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  color: #6f9a94;
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.input-icon__toggle:hover {
+  color: var(--teal-dark);
+  background: rgba(1, 95, 105, 0.08);
+}
+
+.input-icon__toggle:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 1px;
+}
+
 .form-control textarea {
   min-height: 90px;
   resize: vertical;
 }
 
 .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border: 0;
   border-radius: 10px;
   padding: 14px 20px;
@@ -468,6 +529,9 @@
 }
 
 .choice-card em {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 22px;
   color: var(--yellow);
   font-size: 0.86rem;
@@ -566,7 +630,9 @@
 }
 
 .mode-card__cta {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 34px;
   color: var(--yellow);
   font-size: 0.9rem;

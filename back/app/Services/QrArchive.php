@@ -17,9 +17,10 @@ use ZipArchive;
 class QrArchive
 {
     /**
-     * Extensions acceptées pour les QR codes.
+     * Extensions acceptées pour les QR codes. Le SVG (format fourni par Ticketche)
+     * est rasterisé par SvgRasterizer au moment de la composition.
      */
-    public const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg'];
+    public const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'svg'];
 
     /**
      * Extrait les images du ZIP dans un dossier temporaire.
@@ -78,7 +79,7 @@ class QrArchive
 
         if ($entries === []) {
             $zip->close();
-            throw new RuntimeException('Le ZIP ne contient aucune image PNG ou JPG exploitable.');
+            throw new RuntimeException('Le ZIP ne contient aucun QR code exploitable (PNG, JPG ou SVG attendus).');
         }
 
         $maxTickets = (int) config('ticketlab.limits.max_tickets');
