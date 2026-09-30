@@ -1,40 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  color: #f8fffc;
-  background: #015f69;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
-
+/* Styles globaux */
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
-html {
-  min-width: 320px;
-  min-height: 100%;
-  background: #015f69;
-}
-
 body {
-  min-width: 320px;
-  min-height: 100vh;
-  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-button,
-input,
-textarea {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
+/* Couleurs de la charte TicketLab */
+:root {
+  --ticketlab-yellow: #FFB400;
+  --ticketlab-teal-dark: #015F69;
+  --ticketlab-teal-medium: #037580;
+  --ticketlab-teal-light: #087D86;
+  --ticketlab-green-teal: #226E61;
+  --ticketlab-green-teal-alt: #267060;
+  --ticketlab-white: #FFFFFF;
+  --ticketlab-qr-black: #000000;
+  --ticketlab-text-on-yellow: #156660;
 }

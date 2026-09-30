@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
-import type { ChangeEvent, MouseEvent } from 'react';import './App.css';
-import { getTemplates } from './data/templates';
+import { useMemo, useState, useEffect } from 'react';
+import type { ChangeEvent, MouseEvent } from 'react';
+import './App.css';
+import apiClient from './api/client';
 import type {
   CreationMode,
   GeneratorState,
@@ -39,7 +40,7 @@ const supportChoices: Array<{
   {
     value: 'ticket',
     title: 'Ticket',
-    description: 'Coupons, accès, bons d’achat et prestations.',
+    description: "Coupons, accès, bons d'achat et prestations.",
     icon: '🎟️',
   },
   {
@@ -78,11 +79,46 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [isDraggingQr, setIsDraggingQr] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState<TicketTemplate[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
 
-  const availableTemplates = useMemo(
-    () => getTemplates(state.support, state.sector),
-    [state.support, state.sector],
-  );
+  useEffect(() => {
+    if (state.support && state.sector) {
+      loadTemplates();
+    }
+  }, [state.support, state.sector]);
+
+  async function loadTemplates() {
+    setIsLoadingTemplates(true);
+    try {
+      const response = await apiClient.get('/templates', {
+        params: {
+          type: state.support,
+          sector: state.sector,
+        },
+      });
+
+      const templates = response.data.map((t: any) => ({
+        id: t.id,
+        type: t.type,
+        sector: t.sector,
+        name: t.name,
+        description: t.description,
+        imagePath: t.image_url,
+        width: t.width,
+        height: t.height,
+        qrZone: t.qr_zone,
+        fields: t.fields,
+      }));
+
+      setAvailableTemplates(templates);
+    } catch (error) {
+      console.error('Erreur lors du chargement des templates:', error);
+      setAvailableTemplates([]);
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  }
 
   const selectedTemplateImage =
     state.mode === 'preset'
@@ -112,7 +148,7 @@ function App() {
     setSuccessMessage('');
   }
 
-  function login(event: React.FormEvent<HTMLFormElement>) {
+  async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
@@ -120,8 +156,23 @@ function App() {
       return;
     }
 
-    setLoginError('');
-    setIsAuthenticated(true);
+    try {
+      const response = await apiClient.post('/login', {
+        email: email.trim(),
+        password: password.trim(),
+      });
+
+      const { token, user } = response.data;
+
+      localStorage.setItem('ticketlab_token', token);
+
+      setLoginError('');
+      setIsAuthenticated(true);
+    } catch (error: any) {
+      setLoginError(
+        error.response?.data?.message || 'Erreur de connexion'
+      );
+    }
   }
 
   function chooseSupport(support: SupportType) {
@@ -275,7 +326,7 @@ function App() {
     return hasDesign && hasQrZip && hasRequiredFields;
   }
 
-  function generateTickets() {
+  async function generateTickets() {
     if (!canGenerate()) {
       window.alert(
         'Complète les informations obligatoires et ajoute le ZIP des QR codes.',
@@ -286,18 +337,69 @@ function App() {
     setIsGenerating(true);
     setSuccessMessage('');
 
-    window.setTimeout(() => {
-      setIsGenerating(false);
+    try {
+      const formData = new FormData();
+
+      if (state.mode === 'preset') {
+        formData.append('template_id', String(state.template?.id));
+        formData.append('fields', JSON.stringify(state.values));
+      } else {
+        if (state.customTemplateFile) {
+          formData.append('background_image', state.customTemplateFile);
+        }
+        formData.append('qr_zone', JSON.stringify(state.qrZone));
+      }
+
+      if (state.qrZip) {
+        formData.append('qr_zip', state.qrZip);
+      }
+
+      const endpoint = state.mode === 'preset'
+        ? '/generate/preset'
+        : '/generate/custom';
+
+      const response = await apiClient.post(endpoint, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `tickets_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.zip`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      setSuccessMessage('Tickets générés avec succès ! Téléchargement en cours...');
+    } catch (error: any) {
+      console.error('Erreur lors de la génération:', error);
       setSuccessMessage(
-        'La demande est prête. La génération réelle sera envoyée au backend Laravel dès que l’API sera branchée.',
+        error.response?.data?.message || 'Erreur lors de la génération'
       );
-    }, 1400);
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   function restart() {
     setState(initialState);
     setStep(1);
     setSuccessMessage('');
+  }
+
+  async function handleLogout() {
+    try {
+      await apiClient.post('/logout');
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+    } finally {
+      localStorage.removeItem('ticketlab_token');
+      setIsAuthenticated(false);
+      restart();
+    }
   }
 
   function stepTitle() {
@@ -357,8 +459,8 @@ function App() {
           </form>
 
           <p className="auth-hint">
-            Démonstration locale : n’importe quel email et mot de passe
-            permettent d’ouvrir le studio.
+            Démonstration locale : n'importe quel email et mot de passe
+            permettent d'ouvrir le studio.
           </p>
         </section>
 
@@ -393,10 +495,7 @@ function App() {
           <button
             className="logout-button"
             type="button"
-            onClick={() => {
-              setIsAuthenticated(false);
-              restart();
-            }}
+            onClick={handleLogout}
           >
             Déconnexion
           </button>
@@ -486,7 +585,7 @@ function App() {
               <span className="mode-card__icon">📤</span>
               <h2>Uploader mon propre template</h2>
               <p>
-                Importez votre visuel et choisissez précisément l’emplacement
+                Importez votre visuel et choisissez précisément l'emplacement
                 du QR code.
               </p>
               <span className="mode-card__cta">Importer un visuel →</span>
@@ -496,7 +595,12 @@ function App() {
 
         {step === 4 && state.mode === 'preset' && (
           <div className="template-section">
-            {availableTemplates.length > 0 ? (
+            {isLoadingTemplates ? (
+              <div className="empty-state">
+                <span>⏳</span>
+                <h2>Chargement des templates...</h2>
+              </div>
+            ) : availableTemplates.length > 0 ? (
               <div className="template-grid">
                 {availableTemplates.map((template) => (
                   <button
@@ -696,8 +800,8 @@ function App() {
                   </div>
 
                   <p className="settings-help">
-                    Utilisez les coordonnées ou cliquez sur “Déplacer la zone
-                    QR”, puis cliquez directement dans l’aperçu.
+                    Utilisez les coordonnées ou cliquez sur "Déplacer la zone
+                    QR", puis cliquez directement dans l'aperçu.
                   </p>
 
                   <div className="qr-input-grid">
