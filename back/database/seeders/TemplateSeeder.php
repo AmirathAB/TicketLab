@@ -332,5 +332,131 @@ class TemplateSeeder extends Seeder
                 'is_global' => true,
             ]
         );
+        // Le visuel fourni sert volontairement aux deux parcours Parking et Lavage.
+        // On supprime l’ancien preset Lavage afin qu’il ne réapparaisse pas dans la galerie.
+        Template::where('type', 'ticket')
+            ->where('sector', 'lavage')
+            ->where('name', 'Ticket Lavage V1')
+            ->delete();
+
+        Template::updateOrCreate(
+            ['type' => 'ticket', 'sector' => 'parking', 'name' => 'Ticket Parking V1'],
+            [
+                'description' => 'Ticket de stationnement basé sur le visuel Ticketche fourni, avec QR code unique par ticket.',
+                'image_path' => 'ticket_parking_v1.jpg',
+                'width' => 2048,
+                'height' => 1326,
+                'qr_zone_json' => [
+                    'x' => 185,
+                    'y' => 395,
+                    'width' => 770,
+                    'height' => 765,
+                ],
+                'fields_json' => [
+                    [
+                        'key' => 'ticket_number',
+                        'label' => 'Numéro du ticket',
+                        'type' => 'counter',
+                        'x' => 1420,
+                        'y' => 200,
+                        'maxWidth' => 420,
+                        'fontSize' => 122,
+                        'fontFamily' => 'Poppins',
+                        'fontWeight' => 800,
+                        'color' => '#FFB400',
+                        'align' => 'center',
+                        'lineHeight' => 1.2,
+                        'required' => false,
+                        'placeholder' => '1',
+                    ],
+                    [
+                        'key' => 'service_name',
+                        'label' => 'Nom du service',
+                        'type' => 'text',
+                        'x' => 1080,
+                        'y' => 535,
+                        'maxWidth' => 900,
+                        'fontSize' => 53,
+                        'fontFamily' => 'Poppins',
+                        'fontWeight' => 700,
+                        'color' => '#156660',
+                        'align' => 'left',
+                        'lineHeight' => 1.2,
+                        'required' => true,
+                        'placeholder' => 'SERVICE TICKETCHÉ',
+                    ],
+                    [
+                        'key' => 'opening_hours',
+                        'label' => 'Horaires',
+                        'type' => 'text',
+                        'x' => 1080,
+                        'y' => 650,
+                        'maxWidth' => 900,
+                        'fontSize' => 39,
+                        'fontFamily' => 'Poppins',
+                        'fontWeight' => 500,
+                        'color' => '#FFFFFF',
+                        'align' => 'left',
+                        'lineHeight' => 1.25,
+                        'required' => false,
+                        'placeholder' => '7j/7 – 24h/24',
+                    ],
+                    [
+                        'key' => 'phone',
+                        'label' => 'Téléphone',
+                        'type' => 'text',
+                        'x' => 1150,
+                        'y' => 820,
+                        'maxWidth' => 820,
+                        'fontSize' => 38,
+                        'fontFamily' => 'Poppins',
+                        'fontWeight' => 500,
+                        'color' => '#FFFFFF',
+                        'align' => 'left',
+                        'lineHeight' => 1.25,
+                        'required' => false,
+                        'placeholder' => '+229 01 40 51 21 33',
+                    ],
+                    [
+                        'key' => 'location',
+                        'label' => 'Adresse',
+                        'type' => 'textarea',
+                        'x' => 1150,
+                        'y' => 930,
+                        'maxWidth' => 820,
+                        'fontSize' => 35,
+                        'fontFamily' => 'Poppins',
+                        'fontWeight' => 500,
+                        'color' => '#FFFFFF',
+                        'align' => 'left',
+                        'lineHeight' => 1.25,
+                        'required' => false,
+                        'placeholder' => 'Abomey-Calavi, Bidossessi\nVon en face de la pharmacie\nFleuve de vie.',
+                    ],
+                ],
+                'is_global' => true,
+            ]
+        );
+
+        $parkingTemplate = Template::query()
+            ->where('type', 'ticket')
+            ->where('sector', 'parking')
+            ->where('name', 'Ticket Parking V1')
+            ->first();
+
+        if ($parkingTemplate) {
+            Template::updateOrCreate(
+                ['type' => 'ticket', 'sector' => 'lavage', 'name' => 'Ticket Parking-Lavage V1'],
+                [
+                    'description' => 'Template Ticketche partagé par les parcours Parking et Lavage.',
+                    'image_path' => $parkingTemplate->image_path,
+                    'width' => $parkingTemplate->width,
+                    'height' => $parkingTemplate->height,
+                    'qr_zone_json' => $parkingTemplate->qr_zone_json,
+                    'fields_json' => $parkingTemplate->fields_json,
+                    'is_global' => true,
+                ]
+            );
+        }
     }
 }
