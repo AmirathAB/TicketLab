@@ -103,6 +103,22 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .auth-card::after { right: -11px; }
   .auth-visual { width: min(100%, 520px); border-radius: 0 0 14px 14px; flex-direction: row; gap: 20px; align-items: center; padding: 28px 44px; }
   .stub__serials { display: none; }
+
+  /* Sur petit écran le talon disparaît : il ne tient plus la largeur et
+     repoussait le formulaire vers le bas. Ce fichier étant chargé après
+     App.css, c'est ici que la règle doit vivre pour l'emporter sur le
+     `display: flex` de .auth-visual (ligne 67). */
+  .auth-visual { display: none; }
+
+  /* La carte n'a plus de talon en dessous : on retire la perforation et les
+     deux encoches pour qu'elle redevienne un ticket plein et autonome. */
+  .auth-card {
+    border-radius: 14px;
+    border-bottom: 0;
+  }
+
+  .auth-card::before,
+  .auth-card::after { display: none; }
 }
 
 /* ---------- Application ---------- */

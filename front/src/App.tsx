@@ -9,6 +9,7 @@ import {
   EyeOff,
   Lock,
   LogIn,
+  LogOut,
   User,
   Car,
   FileText,
@@ -675,7 +676,8 @@ function App() {
             type="button"
             onClick={handleLogout}
           >
-            Déconnexion
+            <LogOut size={16} strokeWidth={2.4} aria-hidden="true" />
+            <span>Déconnexion</span>
           </button>
         </div>
       </header>
@@ -1135,7 +1137,8 @@ function App() {
               setStep((current) => current - 1);
             }}
           >
-            <ArrowLeft size={16} aria-hidden="true" /> Retour
+            <ArrowLeft size={16} strokeWidth={2.4} aria-hidden="true" />
+            <span>Retour</span>
           </button>
         </footer>
       )}
