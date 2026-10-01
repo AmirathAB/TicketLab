@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import './App.css';
+import './theme.css';
 import apiClient, {
   TOKEN_KEY,
   UNAUTHORIZED_EVENT,
@@ -560,10 +561,9 @@ function App() {
           </div>
 
           <p className="eyebrow">STUDIO DE GÉNÉRATION</p>
-          <h1>Créez vos tickets, flyers et affiches en quelques minutes.</h1>
+          <h1>Vos tickets en série, un QR unique sur chacun.</h1>
           <p className="auth-description">
-            Personnalisez un modèle, ajoutez vos QR codes et récupérez vos
-            visuels prêts à utiliser.
+            Choisissez un modèle, importez le ZIP de QR codes, téléchargez la série.
           </p>
 
           <form className="login-form" onSubmit={login}>
@@ -643,18 +643,17 @@ function App() {
           </p>
         </section>
 
-        <aside className="auth-visual">
-          <div className="auth-visual__glow auth-visual__glow--one" />
-          <div className="auth-visual__glow auth-visual__glow--two" />
-          <div className="auth-ticket">
-            <span className="auth-ticket__label">TICKETLAB</span>
-            <strong>Votre ticket.<br />Votre style.</strong>
-            <span className="auth-ticket__line" />
-            <div className="fake-qr">
-              {Array.from({ length: 25 }).map((_, index) => (
-                <i key={index} className={`fake-qr__cell fake-qr__cell--${index}`} />
-              ))}
-            </div>
+        <aside className="auth-visual" aria-hidden="true">
+          <p className="stub__title">Une série,<br />un QR par ticket.</p>
+          <ol className="stub__serials">
+            <li>N° 0001</li>
+            <li>N° 0002</li>
+            <li>N° 0003</li>
+          </ol>
+          <div className="fake-qr">
+            {Array.from({ length: 25 }).map((_, index) => (
+              <i key={index} className={`fake-qr__cell fake-qr__cell--${index}`} />
+            ))}
           </div>
         </aside>
       </main>
