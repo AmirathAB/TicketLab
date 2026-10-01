@@ -26,6 +26,7 @@ import {
   Wrench,
   CircleParking,
   Crosshair,
+  ChevronRight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import './App.css';
@@ -534,6 +535,33 @@ function App() {
     return titles[step];
   }
 
+  // Fil d'Ariane : rappelle le parcours choisi (support > secteur > mode > template).
+  // Chaque élément ramène à l'étape où le choix a été fait ; les étapes en aval
+  // sont réinitialisées par les fonctions choose*() quand l'utilisateur rechoisit.
+  const breadcrumb: Array<{ label: string; icon?: LucideIcon; goTo: number }> = [];
+
+  const supportChoice = supportChoices.find((c) => c.value === state.support);
+  if (supportChoice && step > 1) {
+    breadcrumb.push({ label: supportChoice.title, icon: supportChoice.icon, goTo: 1 });
+  }
+
+  const sectorChoice = sectorChoices.find((c) => c.value === state.sector);
+  if (sectorChoice && step > 2) {
+    breadcrumb.push({ label: sectorChoice.title, icon: sectorChoice.icon, goTo: 2 });
+  }
+
+  if (state.mode && step > 3) {
+    breadcrumb.push({
+      label: state.mode === 'preset' ? 'Template TicketLab' : 'Mon propre template',
+      icon: state.mode === 'preset' ? Sparkles : Upload,
+      goTo: 3,
+    });
+  }
+
+  if (state.mode === 'preset' && state.template && step > 4) {
+    breadcrumb.push({ label: state.template.name, goTo: 4 });
+  }
+
   const errorBanner = errorMessage ? (
     <div className="error-message" role="alert">
       <AlertTriangle size={18} aria-hidden="true" />
@@ -690,6 +718,38 @@ function App() {
           </div>
           <span className="step-counter">Étape {step} sur 5</span>
         </div>
+
+        {breadcrumb.length > 0 && (
+          <nav className="breadcrumb" aria-label="Votre parcours">
+            {breadcrumb.map((item, index) => {
+              const Icon = item.icon;
+
+              return (
+                <span className="breadcrumb__entry" key={`${item.goTo}-${item.label}`}>
+                  {index > 0 && (
+                    <ChevronRight
+                      className="breadcrumb__sep"
+                      size={16}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <button
+                    className="breadcrumb__item"
+                    type="button"
+                    title="Modifier ce choix"
+                    onClick={() => {
+                      setErrorMessage('');
+                      setStep(item.goTo);
+                    }}
+                  >
+                    {Icon && <Icon size={15} aria-hidden="true" />}
+                    <span>{item.label}</span>
+                  </button>
+                </span>
+              );
+            })}
+          </nav>
+        )}
 
         <div className="progress-track">
           {[1, 2, 3, 4, 5].map((item) => (

@@ -1305,3 +1305,38 @@
   font-size: 0.84rem;
   font-weight: 600;
 }
+
+
+/* ---------- Fil d'Ariane (parcours choisi) ---------- */
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+.breadcrumb__entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.breadcrumb__sep { color: rgba(255, 255, 255, 0.55); flex: none; }
+.breadcrumb__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid rgba(255, 180, 0, 0.55);
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.breadcrumb__item svg { flex: none; color: var(--yellow); }
+.breadcrumb__item:hover { background: var(--yellow); color: #156660; }
+.breadcrumb__item:hover svg { color: #156660; }
+.breadcrumb__item:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
