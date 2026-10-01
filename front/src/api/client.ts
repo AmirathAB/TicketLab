@@ -58,8 +58,25 @@ export async function getErrorMessage(
     return fallback;
   }
 
+  // Pas de réponse HTTP du tout. Deux causes très différentes se confondent ici :
+  // le serveur est vraiment injoignable, OU l'upload a été tronqué par PHP avant
+  // d'atteindre Laravel (post_max_size / upload_max_filesize). Dans le second
+  // cas, le message « vérifiez votre connexion » envoie l'utilisateur dans la
+  // mauvaise direction alors que son fichier est la cause : on distingue les deux.
   if (!axiosError.response) {
-    return 'Impossible de joindre le serveur. Vérifiez votre connexion.';
+    const aborted = axiosError.code === 'ERR_CANCELED';
+
+    if (aborted) {
+      return 'Génération annulée.';
+    }
+
+    // ERR_FAILED sur un POST multipart : corps de requête rejeté avant PHP.
+    // Une réseau coupé donne généralement ERR_NETWORK.
+    if (axiosError.code === 'ERR_BAD_REQUEST' || axiosError.code === 'ERR_FAILED') {
+      return "Le serveur a refusé la requête sans répondre. Causes fréquentes : le fichier envoyé dépasse la taille maximale acceptée par le serveur (ZIP de QR codes ou template), ou le serveur est indisponible.";
+    }
+
+    return 'Impossible de joindre le serveur. Vérifiez que le backend est démarré sur le port défini dans VITE_API_URL.';
   }
 
   let data: unknown = axiosError.response.data;
