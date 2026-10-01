@@ -44,6 +44,19 @@ apiClient.interceptors.response.use(
   },
 );
 
+/** Vrai si le backend répond (même sans en-têtes CORS : réponse "opaque"). */
+async function isServerReachable(origin: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 3000);
+    await fetch(`${origin}/up`, { mode: 'no-cors', signal: controller.signal });
+    window.clearTimeout(timer);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Extrait un message lisible d'une erreur Axios. Gère le cas des réponses
  * `responseType: 'blob'` où le JSON d'erreur arrive sous forme de Blob.
@@ -70,13 +83,15 @@ export async function getErrorMessage(
       return 'Génération annulée.';
     }
 
-    // ERR_FAILED sur un POST multipart : corps de requête rejeté avant PHP.
-    // Une réseau coupé donne généralement ERR_NETWORK.
-    if (axiosError.code === 'ERR_BAD_REQUEST' || axiosError.code === 'ERR_FAILED') {
-      return "Le serveur a refusé la requête sans répondre. Causes fréquentes : le fichier envoyé dépasse la taille maximale acceptée par le serveur (ZIP de QR codes ou template), ou le serveur est indisponible.";
+    // Le navigateur renvoie le même code (ERR_NETWORK) dans les deux cas : on
+    // sonde donc /up (route de santé de Laravel) pour savoir lequel c'est.
+    const origin = API_BASE_URL.replace(/\/api\/?$/, '');
+
+    if (await isServerReachable(origin)) {
+      return "Le serveur répond, mais il a coupé la requête avant de la traiter : le fichier envoyé (template ou ZIP de QR codes) dépasse sans doute la limite d'upload de PHP, ou la génération a planté. Relancez le backend avec « php artisan serve --port=8001 » ou « ./serve.sh » (limites 64 Mo dans back/php), puis réessayez.";
     }
 
-    return 'Impossible de joindre le serveur. Vérifiez que le backend est démarré sur le port défini dans VITE_API_URL.';
+    return `Impossible de joindre le serveur (${origin}). Démarrez le backend (« php artisan serve --port=8001 ») et vérifiez que VITE_API_URL dans front/.env pointe vers ce port.`;
   }
 
   let data: unknown = axiosError.response.data;

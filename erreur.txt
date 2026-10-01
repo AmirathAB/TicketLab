@@ -1,1 +1,0 @@
-Impossible de joindre le serveur. Vérifiez que le backend est démarré sur le port défini dans VITE_API_URL.

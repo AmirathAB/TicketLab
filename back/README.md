@@ -1,3 +1,30 @@
+# TicketLab — Backend (Laravel 11, API-only)
+
+## Installation et démarrage
+
+```bash
+cd back
+composer install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite          # base SQLite par défaut
+php artisan migrate --seed              # tables + compte admin + templates prédéfinis
+php artisan serve --port=8001           # DOIT correspondre à VITE_API_URL (front/.env)
+```
+
+- Compte par défaut : voir `ADMIN_EMAIL` / `ADMIN_PASSWORD` dans `.env`.
+- Mise à jour d'un projet existant : `php artisan migrate` suffit à synchroniser
+  les templates (Parking et Lavage partagent `ticket_parking_v1.jpg`).
+  Équivalent manuel : `php artisan db:seed --class=TemplateSeeder`.
+- Limites d'upload : `php artisan serve` charge `php/conf.d/ticketlab.ini`
+  (64 Mo, mémoire 512 Mo). En production, fixez les mêmes valeurs dans le
+  `php.ini` de PHP-FPM/Apache (`post_max_size`, `upload_max_filesize`).
+- Ajouter un template : déposer le fond nettoyé dans `resources/templates/images/`
+  puis ajouter un bloc `updateOrCreate` dans `database/seeders/TemplateSeeder.php`.
+  Le fond se prépare avec `python3 tools/make_clean_plate.py <fichier>`.
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

@@ -20,6 +20,7 @@ Usage : python3 tools/make_clean_plate.py
 Dépendances : pip install opencv-python-headless numpy
 """
 import os
+import sys
 import cv2
 import numpy as np
 
@@ -43,6 +44,23 @@ TEMPLATES = {
             (172, 430, 455, 466, "text"),    # téléphone
             (140, 490, 470, 545, "grad"),    # note (bloc vert)
             (605, 246, 913, 554, "white"),   # QR d'exemple
+        ],
+    },
+    "ticket_parking_v1.jpg": {
+        # Visuel Ticketche fourni (4188 x 2713) ramené à 2048 x 1326 :
+        # partagé par les parcours Parking ET Lavage (cf. TemplateSeeder).
+        "src": "template/parking.jpeg",
+        "size": (2048, 1326),
+        "rects": [
+            (1602, 250, 1720, 400, "text"),    # chiffre "1" (on garde "N°")
+            (1085, 548, 1990, 678, "fill"),    # "SERVICE TICKETCHE" (bandeau jaune uni)
+            (1015, 698, 1490, 760, "text"),    # "Solution de stationnement"
+            (1512, 712, 1760, 764, "fill"),    # "7j/7 - 24h/24" (pastille brune unie)
+            (1148, 858, 1550, 930, "text"),    # téléphone
+            (1148, 775, 1770, 1105, "text"),   # adresse (3 lignes)
+            # QR d'exemple : on blanchit l'intérieur du cadre arrondi mais on
+            # garde ses bords (le cadre blanc arrondi fait partie du visuel).
+            (200, 407, 940, 1149, "white"),
         ],
     },
     "ticket_lavage_v1.jpg": {
@@ -94,10 +112,17 @@ def coons(img, x0, y0, x1, y1, pad=3):
 
 
 def main():
+    # Usage : python3 tools/make_clean_plate.py [ticket_parking_v1.jpg ...]
+    # Sans argument, tous les fonds sont regénérés.
+    only = sys.argv[1:]
     for out_name, cfg in TEMPLATES.items():
+        if only and out_name not in only:
+            continue
         img = cv2.imread(os.path.join(ROOT, cfg["src"]))
         if img is None:
             raise SystemExit(f"Image introuvable : {cfg['src']}")
+        if cfg.get("size"):
+            img = cv2.resize(img, cfg["size"], interpolation=cv2.INTER_AREA)
         ref = img.copy()  # on lit toujours les bords dans l'original
         for x0, y0, x1, y1, mode in cfg["rects"]:
             if mode == "white":
