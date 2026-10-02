@@ -52,7 +52,7 @@ import type {
 const MAX_TEMPLATE_MB = 10;
 const MAX_QR_ZIP_MB = 50;
 // Keep each HTTP request short enough for local PHP and production reverse proxies.
-const GENERATION_BATCH_SIZE = 10;
+const GENERATION_BATCH_SIZE = 20;
 const QR_SIZES = [150, 200, 250];
 
 // Forme JSON renvoyée par GET /api/templates
