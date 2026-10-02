@@ -1,4 +1,0 @@
-admin@ticketlab.test
-password
-
-

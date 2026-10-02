@@ -88,10 +88,10 @@ export async function getErrorMessage(
     const origin = API_BASE_URL.replace(/\/api\/?$/, '');
 
     if (await isServerReachable(origin)) {
-      return "Le serveur répond, mais il a coupé la requête avant de la traiter : le fichier envoyé (template ou ZIP de QR codes) dépasse sans doute la limite d'upload de PHP, ou la génération a planté. Relancez le backend avec « php artisan serve --port=8001 » ou « ./serve.sh » (limites 64 Mo dans back/php), puis réessayez.";
+      return "Le serveur répond, mais la génération a été interrompue avant de renvoyer le fichier. Vérifiez les logs du backend et démarrez-le avec « ./serve.sh 8001 » (limites d'upload et de mémoire configurées), puis réessayez.";
     }
 
-    return `Impossible de joindre le serveur (${origin}). Démarrez le backend (« php artisan serve --port=8001 ») et vérifiez que VITE_API_URL dans front/.env pointe vers ce port.`;
+    return `Impossible de joindre le serveur (${origin}). Démarrez le backend avec « ./serve.sh 8001 » et vérifiez que VITE_API_URL dans front/.env pointe vers ce port.`;
   }
 
   let data: unknown = axiosError.response.data;

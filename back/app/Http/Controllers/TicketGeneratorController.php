@@ -63,6 +63,7 @@ class TicketGeneratorController extends Controller
         $validator = Validator::make($request->all(), [
             'template_id' => ['required', 'integer', 'exists:templates,id'],
             'fields' => ['required', 'json'],
+            'counter_start' => ['nullable', 'integer', 'min:1'],
             'qr_zip' => ['required', 'file', 'mimes:zip', 'max:' . ($limits['qr_zip_max_mb'] * 1024)],
         ], $this->messages($limits));
 
@@ -83,7 +84,8 @@ class TicketGeneratorController extends Controller
         return $this->run(fn () => $this->generator->generateFromPreset(
             $template,
             $values,
-            $request->file('qr_zip')->getRealPath()
+            $request->file('qr_zip')->getRealPath(),
+            $request->integer('counter_start', 1)
         ));
     }
 

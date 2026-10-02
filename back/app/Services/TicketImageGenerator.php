@@ -75,7 +75,7 @@ class TicketImageGenerator
      * @param  array<string,mixed>  $values  valeurs saisies, indexées par field.key
      * @return string chemin du ZIP final
      */
-    public function generateFromPreset(Template $template, array $values, string $qrZipPath): string
+    public function generateFromPreset(Template $template, array $values, string $qrZipPath, int $counterStart = 1): string
     {
         $this->prepareRuntime();
 
@@ -91,7 +91,7 @@ class TicketImageGenerator
         $scale = $template->width > 0 ? $width / $template->width : 1.0;
 
         $zone = $this->validateZone($this->scaleZone($template->qr_zone, $scale), $width, $height);
-        $fields = $this->prepareFields($template->fields, $values, $scale);
+        $fields = $this->prepareFields($template->fields, $values, $scale, $counterStart);
 
         $qrPaths = $this->archive->extract($qrZipPath, $this->dir('qr'));
 
@@ -259,7 +259,7 @@ class TicketImageGenerator
      * @param  list<array<string,mixed>>  $templateFields
      * @return list<array<string,mixed>>
      */
-    private function prepareFields(array $templateFields, array $values, float $scale): array
+    private function prepareFields(array $templateFields, array $values, float $scale, int $counterStart = 1): array
     {
         $prepared = [];
 
@@ -277,7 +277,9 @@ class TicketImageGenerator
             $prepared[] = [
                 'type' => $type,
                 'text' => $text,
-                'start' => $field['start'] ?? 1,
+                'start' => $type === 'counter'
+                    ? (int) ($field['start'] ?? 1) + $counterStart - 1
+                    : ($field['start'] ?? 1),
                 'x' => (float) ($field['x'] ?? 0) * $scale,
                 'y' => (float) ($field['y'] ?? 0) * $scale,
                 'maxWidth' => isset($field['maxWidth']) ? (float) $field['maxWidth'] * $scale : null,

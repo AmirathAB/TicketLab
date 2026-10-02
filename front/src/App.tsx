@@ -51,6 +51,8 @@ import type {
 // Limites affichées/validées côté client (le serveur revalide de toute façon)
 const MAX_TEMPLATE_MB = 10;
 const MAX_QR_ZIP_MB = 50;
+// Keep each HTTP request short enough for local PHP and production reverse proxies.
+const GENERATION_BATCH_SIZE = 10;
 const QR_SIZES = [150, 200, 250];
 
 // Forme JSON renvoyée par GET /api/templates
@@ -453,37 +455,79 @@ function App() {
     setUploadProgress(0);
 
     try {
-      const formData = new FormData();
-
-      if (state.mode === 'preset') {
-        formData.append('template_id', String(state.template?.id));
-        formData.append('fields', JSON.stringify(state.values));
-      } else {
-        if (state.customTemplateFile) {
-          formData.append('background_image', state.customTemplateFile);
-        }
-        formData.append('qr_zone', JSON.stringify(state.qrZone));
-      }
-
-      if (state.qrZip) {
-        formData.append('qr_zip', state.qrZip);
-      }
-
       const endpoint = state.mode === 'preset'
         ? '/generate/preset'
         : '/generate/custom';
 
-      // Pas de Content-Type manuel : le navigateur ajoute le boundary multipart
-      const response = await apiClient.post(endpoint, formData, {
-        responseType: 'blob',
-        onUploadProgress: (progress) => {
-          if (progress.total) {
-            setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
-          }
-        },
-      });
+      // Une seule requête pour 50 images dépasse facilement le timeout d'un
+      // serveur PHP ou d'un reverse proxy. On envoie donc des lots courts,
+      // puis on recombine les images générées dans le navigateur.
+      const sourceArchive = await JSZip.loadAsync(state.qrZip as Blob);
+      const qrEntries = Object.values(sourceArchive.files)
+        .filter((entry) =>
+          !entry.dir &&
+          !entry.name.includes('__MACOSX/') &&
+          /\.(png|jpe?g|svg)$/i.test(entry.name),
+        )
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      const batchCount = Math.ceil(qrEntries.length / GENERATION_BATCH_SIZE);
+      const finalArchive = new JSZip();
+      const digits = Math.max(3, String(qrEntries.length).length);
+      let nextTicket = 1;
 
-      const blob = new Blob([response.data], { type: 'application/zip' });
+      for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
+        const batchEntries = qrEntries.slice(
+          batchIndex * GENERATION_BATCH_SIZE,
+          (batchIndex + 1) * GENERATION_BATCH_SIZE,
+        );
+        const batchArchive = new JSZip();
+
+        for (const entry of batchEntries) {
+          const filename = entry.name.split('/').pop() || `qr_${nextTicket}.png`;
+          batchArchive.file(filename, await entry.async('blob'));
+        }
+
+        const batchBlob = await batchArchive.generateAsync({ type: 'blob' });
+        const formData = new FormData();
+
+        if (state.mode === 'preset') {
+          formData.append('template_id', String(state.template?.id));
+          formData.append('fields', JSON.stringify(state.values));
+          formData.append('counter_start', String(batchIndex * GENERATION_BATCH_SIZE + 1));
+        } else {
+          if (state.customTemplateFile) {
+            formData.append('background_image', state.customTemplateFile);
+          }
+          formData.append('qr_zone', JSON.stringify(state.qrZone));
+        }
+
+        formData.append('qr_zip', batchBlob, `qr_batch_${batchIndex + 1}.zip`);
+
+        // Pas de Content-Type manuel : le navigateur ajoute le boundary multipart.
+        const response = await apiClient.post(endpoint, formData, {
+          responseType: 'blob',
+          onUploadProgress: (progress) => {
+            const current = progress.total ? progress.loaded / progress.total : 1;
+            setUploadProgress(Math.round(((batchIndex + current) / batchCount) * 100));
+          },
+        });
+
+        const generatedArchive = await JSZip.loadAsync(response.data as Blob);
+        const generatedEntries = Object.values(generatedArchive.files)
+          .filter((entry) => !entry.dir)
+          .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+        for (const entry of generatedEntries) {
+          const extension = entry.name.split('.').pop() || 'jpg';
+          const filename = `ticket_${String(nextTicket).padStart(digits, '0')}.${extension}`;
+          finalArchive.file(filename, await entry.async('blob'));
+          nextTicket += 1;
+        }
+
+        setUploadProgress(Math.round(((batchIndex + 1) / batchCount) * 100));
+      }
+
+      const blob = await finalArchive.generateAsync({ type: 'blob', compression: 'STORE' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       const stamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
