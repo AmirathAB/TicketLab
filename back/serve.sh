@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Demarre l'API TicketLab avec les limites PHP necessaires (voir php/ticketlab.ini).
+# Demarre l'API TicketLab avec les limites PHP necessaires (voir php/config.d/ticketlab.ini).
 #
 # `php artisan serve` delegue a un `php -S` qui NE reprend pas l'option -c du
 # parent : le worker relit alors /etc/php/8.2/cli/php.ini (post_max_size = 8M,
@@ -7,7 +7,8 @@
 # reponse exploitable pour le navigateur (net::ERR_FAILED).
 #
 # On lance donc directement le serveur integre, depuis public/ (c'est le
-# document root attendu par le router de Laravel) et avec -c.
+# document root attendu par le router de Laravel) et avec des options -d
+# explicites (aucun chemin de fichier ini a maintenir).
 #
 # Usage : ./serve.sh [port]   (defaut : 8001)
 set -euo pipefail
@@ -30,6 +31,10 @@ cd "$ROOT/public"
 # bloquerait sinon l'affichage des vignettes de templates.
 export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}"
 
-exec php -c "$ROOT/php/ticketlab.ini" \
+exec php \
+  -d post_max_size=64M \
+  -d upload_max_filesize=64M \
+  -d memory_limit=512M \
+  -d max_execution_time=300 \
   -S "127.0.0.1:${PORT}" \
   "$ROOT/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"

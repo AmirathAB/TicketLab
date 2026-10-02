@@ -12,10 +12,10 @@ require __DIR__.'/vendor/autoload.php';
 // TicketLab : `php artisan serve` lance un `php -S` enfant qui relit le php.ini
 // systeme (upload 2 Mo, post 8 Mo). Tout template/ZIP plus gros etait coupe par PHP
 // avant Laravel -> le navigateur affichait "Impossible de joindre le serveur".
-// On donne a l'enfant le dossier php/conf.d (limites 64 Mo) via PHP_INI_SCAN_DIR,
+// On donne a l'enfant le dossier php/config.d (limites 64 Mo) via PHP_INI_SCAN_DIR,
 // variable ajoutee a la liste blanche que la commande `serve` transmet a l'enfant.
 if (($_SERVER['argv'][1] ?? null) === 'serve') {
-    $scanDir = ':'.__DIR__.'/php/conf.d';
+    $scanDir = ':'.__DIR__.'/php/config.d';
     putenv('PHP_INI_SCAN_DIR='.$scanDir);
     $_ENV['PHP_INI_SCAN_DIR'] = $scanDir;
     \Illuminate\Foundation\Console\ServeCommand::$passthroughVariables[] = 'PHP_INI_SCAN_DIR';
